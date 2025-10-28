@@ -1,15 +1,14 @@
-# NBA Game Results Tracker
+# NBA Game Result Tracker
 
-A Go console application that fetches current NBA game results for any given day and exports them to both JSON and Excel formats.
+A console application that fetches current NBA game results and exports them to both JSON and Excel formats.
 
 ## Features
 
-- Fetch NBA game results for any date
-- Export results to JSON format with metadata
-- Generate formatted Excel reports with styling
-- Support for live games, scheduled games, and final results
-- Command-line interface with flexible options
-- Comprehensive error handling and logging
+- Fetches real-time NBA game data from the official NBA API
+- Outputs results as formatted JSON to console
+- Exports game data to Excel spreadsheet
+- Handles both completed and in-progress games
+- Includes team information, scores, and game status
 
 ## Installation
 
@@ -21,159 +20,149 @@ cd nba-result
 
 2. Install dependencies:
 ```bash
-go mod tidy
-```
-
-3. Build the application:
-```bash
-go build -o nba-tracker main.go
+go mod download
 ```
 
 ## Usage
 
-### Basic Usage
-
-Fetch today's NBA games:
-```bash
-./nba-tracker
-```
-
-### Options
+### Running the Application
 
 ```bash
-./nba-tracker [options]
+go run cmd/main.go
 ```
 
-**Available Options:**
-- `-date`: Specific date to fetch games for (YYYY-MM-DD format, defaults to today)
-- `-json`: Output JSON file path (default: "nba_games.json")
-- `-excel`: Output Excel file path (default: "nba_games.xlsx")
-- `-help`: Show help message
+The application will:
+1. Fetch today's NBA games from the official API
+2. Display the results as formatted JSON in the console
+3. Export the data to an Excel file named `nba_games_YYYYMMDD.xlsx`
 
-### Examples
+### Output Format
 
-1. Fetch games for a specific date:
-```bash
-./nba-tracker -date=2024-01-15
+#### JSON Output (Console)
+```json
+[
+  {
+    "game_id": "0022300123",
+    "date": "20240115",
+    "home_team": {
+      "id": 1,
+      "name": "Los Angeles Lakers",
+      "abbreviation": "LAL",
+      "score": 110,
+      "wins": 25,
+      "losses": 18
+    },
+    "away_team": {
+      "id": 2,
+      "name": "Golden State Warriors", 
+      "abbreviation": "GSW",
+      "score": 105,
+      "wins": 22,
+      "losses": 21
+    },
+    "status": "Final",
+    "period": 4,
+    "time_remaining": "",
+    "start_time": "2024-01-15T19:30:00Z"
+  }
+]
 ```
 
-2. Custom output file names:
-```bash
-./nba-tracker -json=results.json -excel=report.xlsx
+#### Excel Output
+The Excel file contains a formatted spreadsheet with columns:
+- Game ID
+- Date
+- Away Team
+- Away Score  
+- Home Team
+- Home Score
+- Status
+- Period
+- Time Remaining
+
+## Architecture
+
+The application is structured as follows:
+
+```
+├── cmd/
+│   └── main.go              # Application entry point
+├── internal/
+│   ├── nba/
+│   │   ├── client.go        # NBA API client
+│   │   └── client_test.go   # Client tests
+│   └── exporter/
+│       ├── excel.go         # Excel export functionality
+│       └── excel_test.go    # Excel export tests
+├── go.mod                   # Go module dependencies
+└── README.md               # Documentation
 ```
 
-3. Fetch games for yesterday with custom files:
-```bash
-./nba-tracker -date=2024-01-14 -json=yesterday_games.json -excel=yesterday_report.xlsx
-```
+### Components
 
-## Output Formats
+#### NBA Client (`internal/nba/client.go`)
+- Handles HTTP requests to the NBA Stats API
+- Parses API responses into structured data
+- Manages authentication headers and request formatting
+- Converts raw API data to Go structs
 
-### JSON Output
-
-The JSON output includes:
-- Export metadata (generation time, total games, date)
-- Complete game details (teams, scores, status, etc.)
-- Summary statistics (games by status)
-
-### Excel Output
-
-The Excel file contains:
-- **NBA Games Sheet**: Detailed game information with color-coded status
-  - Green: Final games
-  - Yellow: Live games
-  - Gray: Scheduled games
-- **Summary Sheet**: Overview statistics and metadata
-
-## Game Status Types
-
-- **Scheduled**: Game hasn't started yet
-- **Live**: Game is currently in progress
-- **Final**: Game has ended
-
-## API Data Source
-
-This application uses the unofficial NBA.com API endpoints to fetch game data. The API provides real-time information about:
-- Game schedules
-- Live scores and game clock
-- Final results
-- Team information
-
-## Error Handling
-
-The application includes comprehensive error handling for:
-- Network connectivity issues
-- Invalid date formats
-- API response errors
-- File creation/writing errors
-- Missing or malformed data
+#### Excel Exporter (`internal/exporter/excel.go`)
+- Creates formatted Excel spreadsheets
+- Applies styling to headers and data
+- Auto-adjusts column widths for readability
+- Handles multiple games in a single export
 
 ## Dependencies
 
-- [excelize/v2](https://github.com/xuri/excelize): Excel file generation
-- Standard Go libraries for HTTP requests and JSON handling
+- `github.com/xuri/excelize/v2` - Excel file generation
+- `github.com/stretchr/testify` - Testing framework
 
-## Development
+## Testing
 
-### Running Tests
-
+Run all tests:
 ```bash
 go test ./...
 ```
 
-### Running with Verbose Output
-
+Run tests with coverage:
 ```bash
-go run main.go -date=2024-01-15
+go test -cover ./...
 ```
 
-### Project Structure
+Run specific package tests:
+```bash
+go test ./internal/nba
+go test ./internal/exporter
+```
 
-```
-.
-├── main.go                 # Application entry point
-├── internal/
-│   ├── nba/
-│   │   ├── client.go       # NBA API client
-│   │   └── models.go       # Data structures
-│   └── exporter/
-│       ├── json.go         # JSON export functionality
-│       └── excel.go        # Excel export functionality
-├── tests/
-│   ├── nba_test.go         # NBA client tests
-│   └── exporter_test.go    # Exporter tests
-├── go.mod                  # Go module file
-└── README.md
-```
+## API Information
+
+This application uses the official NBA Stats API:
+- Base URL: `https://stats.nba.com/stats/scoreboardV2`
+- Requires specific headers to avoid rate limiting
+- Returns comprehensive game and team data
+- Updates in real-time during games
+
+## Error Handling
+
+The application includes robust error handling for:
+- Network connectivity issues
+- API rate limiting or unavailability
+- Invalid API responses
+- File system operations
+- Data parsing errors
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/nba-game-tracker`)
 3. Make your changes
 4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
+5. Run the test suite
+6. Commit your changes (`git commit -am 'Add new feature'`)
+7. Push to the branch (`git push origin feature/nba-game-tracker`)
+8. Create a Pull Request
 
 ## License
 
-MIT License - see LICENSE file for details
-
-## Troubleshooting
-
-### Common Issues
-
-1. **"No games found"**: Check if the date is valid and if there were NBA games scheduled for that date
-2. **"Failed to fetch games"**: Verify internet connectivity and try again
-3. **"Permission denied"**: Ensure you have write permissions in the output directory
-
-### Rate Limiting
-
-The NBA API may have rate limiting. If you encounter issues, wait a few minutes before making another request.
-
-### Date Format
-
-Always use YYYY-MM-DD format for dates. Examples:
-- 2024-01-15 ✓
-- 01-15-2024 ✗
-- 2024/01/15 ✗
+This project is licensed under the MIT License - see the LICENSE file for details.

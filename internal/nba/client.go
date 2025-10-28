@@ -9,14 +9,44 @@ import (
 )
 
 const (
-	// Using NBA API endpoint (unofficial but commonly used)
-	baseURL = "https://data.nba.net/10s/prod/v1"
-	userAgent = "NBA-Result-Tracker/1.0"
+	// NBA API endpoint for today's games
+	NBA_API_BASE_URL = "https://stats.nba.com/stats/scoreboardV2"
 )
 
-// Client represents the NBA API client
+// Client handles NBA API requests
 type Client struct {
 	httpClient *http.Client
+}
+
+// Game represents an NBA game with results
+type Game struct {
+	GameID       string    `json:"game_id"`
+	Date         string    `json:"date"`
+	HomeTeam     Team      `json:"home_team"`
+	AwayTeam     Team      `json:"away_team"`
+	Status       string    `json:"status"`
+	Period       int       `json:"period"`
+	TimeRemaining string   `json:"time_remaining"`
+	StartTime    time.Time `json:"start_time"`
+}
+
+// Team represents a basketball team
+type Team struct {
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	Abbreviation string `json:"abbreviation"`
+	Score        int    `json:"score"`
+	Wins         int    `json:"wins"`
+	Losses       int    `json:"losses"`
+}
+
+// APIResponse represents the NBA API response structure
+type APIResponse struct {
+	ResultSets []struct {
+		Name    string        `json:"name"`
+		Headers []string      `json:"headers"`
+		RowSet  []interface{} `json:"rowSet"`
+	} `json:"resultSets"`
 }
 
 // NewClient creates a new NBA API client
@@ -28,18 +58,20 @@ func NewClient() *Client {
 	}
 }
 
-// GetGamesByDate fetches games for a specific date
-func (c *Client) GetGamesByDate(date time.Time) ([]Game, error) {
-	dateStr := date.Format("20060102")
-	url := fmt.Sprintf("%s/%s/scoreboard.json", baseURL, dateStr)
+// GetTodaysGames fetches today's NBA games from the API
+func (c *Client) GetTodaysGames() ([]Game, error) {
+	today := time.Now().Format("20060102")
+	url := fmt.Sprintf("%s?DayOffset=0&LeagueID=00&gameDate=%s", NBA_API_BASE_URL, today)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("User-Agent", userAgent)
+	// Add required headers for NBA API
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Referer", "https://www.nba.com/")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -48,7 +80,7 @@ func (c *Client) GetGamesByDate(date time.Time) ([]Game, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("API request failed with status: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -56,75 +88,96 @@ func (c *Client) GetGamesByDate(date time.Time) ([]Game, error) {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	var response ScoreboardResponse
-	if err := json.Unmarshal(body, &response); err != nil {
+	var apiResp APIResponse
+	err = json.Unmarshal(body, &apiResp)
+	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	// Convert API response to our Game structure
-	games := make([]Game, len(response.Games))
-	for i, apiGame := range response.Games {
-		games[i] = convertAPIGameToGame(apiGame, date)
+	return c.parseGames(apiResp, today)
+}
+
+// parseGames converts API response to Game structs
+func (c *Client) parseGames(resp APIResponse, date string) ([]Game, error) {
+	var games []Game
+
+	// Find the GameHeader result set
+	var gameHeaders []interface{}
+	var lineScore []interface{}
+
+	for _, resultSet := range resp.ResultSets {
+		switch resultSet.Name {
+		case "GameHeader":
+			gameHeaders = resultSet.RowSet
+		case "LineScore":
+			lineScore = resultSet.RowSet
+		}
+	}
+
+	if len(gameHeaders) == 0 {
+		// No games today - return empty slice
+		return games, nil
+	}
+
+	// Parse game data
+	for _, gameData := range gameHeaders {
+		gameRow, ok := gameData.([]interface{})
+		if !ok || len(gameRow) < 11 {
+			continue
+		}
+
+		game := Game{
+			GameID: fmt.Sprintf("%v", gameRow[2]),
+			Date:   date,
+			Status: fmt.Sprintf("%v", gameRow[3]),
+		}
+
+		// Parse period and time remaining
+		if gameRow[4] != nil {
+			game.Period = int(gameRow[4].(float64))
+		}
+		if gameRow[5] != nil {
+			game.TimeRemaining = fmt.Sprintf("%v", gameRow[5])
+		}
+
+		// Parse team data from LineScore
+		c.parseTeamData(&game, lineScore)
+
+		games = append(games, game)
 	}
 
 	return games, nil
 }
 
-// convertAPIGameToGame converts API response game to our Game struct
-func convertAPIGameToGame(apiGame APIGame, date time.Time) Game {
-	game := Game{
-		GameID: apiGame.GameID,
-		Date: date.Format("2006-01-02"),
-		HomeTeam: Team{
-			TeamID: apiGame.HTeam.TeamID,
-			Tricode: apiGame.HTeam.Tricode,
-			Score: apiGame.HTeam.Score,
-		},
-		VisitorTeam: Team{
-			TeamID: apiGame.VTeam.TeamID,
-			Tricode: apiGame.VTeam.Tricode,
-			Score: apiGame.VTeam.Score,
-		},
-		Period: apiGame.Period.Current,
-		Clock: apiGame.Clock,
-		StatusText: apiGame.StatusText,
-	}
-
-	// Determine game status
-	if apiGame.IsGameActivated {
-		if apiGame.Period.Current == 0 {
-			game.Status = "Scheduled"
-		} else if apiGame.Period.Current > 0 && apiGame.Period.Current <= 4 {
-			game.Status = "Live"
-		} else {
-			game.Status = "Final"
+// parseTeamData extracts team information from line score data
+func (c *Client) parseTeamData(game *Game, lineScore []interface{}) {
+	for _, scoreData := range lineScore {
+		scoreRow, ok := scoreData.([]interface{})
+		if !ok || len(scoreRow) < 8 {
+			continue
 		}
-	} else {
-		game.Status = "Final"
-	}
 
-	// Determine winner
-	if game.Status == "Final" {
-		homeScore := parseScore(apiGame.HTeam.Score)
-		visitorScore := parseScore(apiGame.VTeam.Score)
-		if homeScore > visitorScore {
-			game.Winner = "Home"
-		} else if visitorScore > homeScore {
-			game.Winner = "Visitor"
+		gameID := fmt.Sprintf("%v", scoreRow[0])
+		if gameID != game.GameID {
+			continue
+		}
+
+		team := Team{
+			ID:           int(scoreRow[1].(float64)),
+			Abbreviation: fmt.Sprintf("%v", scoreRow[2]),
+			Name:         fmt.Sprintf("%v", scoreRow[3]),
+		}
+
+		// Parse score
+		if scoreRow[7] != nil {
+			team.Score = int(scoreRow[7].(float64))
+		}
+
+		// Determine if home or away team
+		if scoreRow[4] != nil && scoreRow[4].(string) == "1" {
+			game.HomeTeam = team
 		} else {
-			game.Winner = "Tie"
+			game.AwayTeam = team
 		}
 	}
-
-	return game
-}
-
-// parseScore safely parses score string to int
-func parseScore(scoreStr string) int {
-	if scoreStr == "" {
-		return 0
-	}
-	var score int
-	fmt.Sscanf(scoreStr, "%d", &score)
-	return score
 }
