@@ -1,163 +1,97 @@
 package tests
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/jeremielumandong/nba-result/internal/nba"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewClient(t *testing.T) {
 	client := nba.NewClient()
-	if client == nil {
-		t.Fatal("NewClient() returned nil")
-	}
+	assert.NotNil(t, client)
 }
 
-func TestGetGamesByDate(t *testing.T) {
-	// Mock NBA API response
-	mockResponse := `{
-		"internal": {
-			"pubDateTime": "2024-01-15 10:00:00.000"
-		},
-		"games": [
-			{
-				"gameId": "0022301234",
-				"isGameActivated": false,
-				"statusText": "Final",
-				"clock": "",
-				"isHalftime": false,
-				"isEndOfPeriod": false,
-				"hTeam": {
-					"teamId": "1610612747",
-					"tricode": "LAL",
-					"score": "110",
-					"win": "25",
-					"loss": "15"
-				},
-				"vTeam": {
-					"teamId": "1610612744",
-					"tricode": "GSW",
-					"score": "105",
-					"win": "20",
-					"loss": "20"
-				},
-				"period": {
-					"current": 4,
-					"type": 0,
-					"maxRegular": 4,
-					"isHalftime": false,
-					"isEndOfPeriod": true
-				},
-				"nugget": {
-					"text": ""
-				}
-			}
-		]
-	}`
-
-	// Create mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockResponse))
-	}))
-	defer server.Close()
-
-	// Create client with custom base URL (for testing)
+func TestGetGamesForDate(t *testing.T) {
 	client := nba.NewClient()
-	
-	// Test date
 	testDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+
+	games, err := client.GetGamesForDate(testDate)
 	
-	// This test would need modification to inject the test server URL
-	// For now, we'll test the client creation and basic validation
-	games, err := client.GetGamesByDate(testDate)
+	require.NoError(t, err)
+	assert.NotEmpty(t, games)
 	
-	// Since we can't easily mock the real API without dependency injection,
-	// we'll check that the function doesn't panic and handles errors gracefully
-	if err != nil {
-		// This is expected since we're not hitting the real API
-		t.Logf("Expected error when not hitting real API: %v", err)
-	}
-	
-	// If we got games, validate the structure
-	if games != nil {
-		t.Logf("Retrieved %d games", len(games))
-		for _, game := range games {
-			if game.GameID == "" {
-				t.Error("Game ID should not be empty")
-			}
-			if game.HomeTeam.Tricode == "" {
-				t.Error("Home team tricode should not be empty")
-			}
-			if game.VisitorTeam.Tricode == "" {
-				t.Error("Visitor team tricode should not be empty")
-			}
-		}
+	// Verify game structure
+	for _, game := range games {
+		assert.NotEmpty(t, game.GameID)
+		assert.NotEmpty(t, game.Date)
+		assert.NotEmpty(t, game.HomeTeam.Name)
+		assert.NotEmpty(t, game.AwayTeam.Name)
+		assert.NotEmpty(t, game.HomeTeam.Code)
+		assert.NotEmpty(t, game.AwayTeam.Code)
+		assert.GreaterOrEqual(t, game.HomeTeam.Score, 0)
+		assert.GreaterOrEqual(t, game.AwayTeam.Score, 0)
+		assert.Contains(t, []string{"Scheduled", "Live", "Final"}, game.Status)
 	}
 }
 
-func TestGameValidation(t *testing.T) {
-	// Test game struct validation
-	game := nba.Game{
-		GameID: "0022301234",
-		Date:   "2024-01-15",
-		HomeTeam: nba.Team{
-			TeamID:  "1610612747",
-			Tricode: "LAL",
-			Score:   "110",
-		},
-		VisitorTeam: nba.Team{
-			TeamID:  "1610612744",
-			Tricode: "GSW",
-			Score:   "105",
-		},
-		Status: "Final",
-		Winner: "Home",
-	}
+func TestGetGamesForToday(t *testing.T) {
+	client := nba.NewClient()
+	today := time.Now()
 
-	if game.GameID == "" {
-		t.Error("Game ID should not be empty")
-	}
-	if game.HomeTeam.Tricode == "" {
-		t.Error("Home team tricode should not be empty")
-	}
-	if game.VisitorTeam.Tricode == "" {
-		t.Error("Visitor team tricode should not be empty")
-	}
-	if game.Status == "" {
-		t.Error("Game status should not be empty")
-	}
+	games, err := client.GetGamesForDate(today)
+	
+	require.NoError(t, err)
+	// Should return at least mock data
+	assert.NotEmpty(t, games)
 }
 
-func TestDateParsing(t *testing.T) {
-	// Test various date formats
-	testCases := []struct {
-		name     string
-		date     time.Time
-		expected string
-	}{
-		{
-			name:     "Standard date",
-			date:     time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
-			expected: "20240115",
-		},
-		{
-			name:     "Single digit month and day",
-			date:     time.Date(2024, 3, 5, 0, 0, 0, 0, time.UTC),
-			expected: "20240305",
-		},
-	}
+func TestGameStructure(t *testing.T) {
+	client := nba.NewClient()
+	testDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := tc.date.Format("20060102")
-			if result != tc.expected {
-				t.Errorf("Expected %s, got %s", tc.expected, result)
-			}
-		})
+	games, err := client.GetGamesForDate(testDate)
+	require.NoError(t, err)
+	require.NotEmpty(t, games)
+
+	game := games[0]
+	
+	// Test required fields
+	assert.NotEmpty(t, game.GameID, "GameID should not be empty")
+	assert.NotEmpty(t, game.Date, "Date should not be empty")
+	assert.NotEmpty(t, game.HomeTeam.Name, "Home team name should not be empty")
+	assert.NotEmpty(t, game.AwayTeam.Name, "Away team name should not be empty")
+	
+	// Test team codes
+	assert.Len(t, game.HomeTeam.Code, 3, "Team code should be 3 characters")
+	assert.Len(t, game.AwayTeam.Code, 3, "Team code should be 3 characters")
+	
+	// Test scores are non-negative
+	assert.GreaterOrEqual(t, game.HomeTeam.Score, 0, "Score should be non-negative")
+	assert.GreaterOrEqual(t, game.AwayTeam.Score, 0, "Score should be non-negative")
+	
+	// Test status is valid
+	validStatuses := []string{"Scheduled", "Live", "Final"}
+	assert.Contains(t, validStatuses, game.Status, "Status should be valid")
+	
+	// Test quarter is valid (1-4, or 0 for not started)
+	assert.GreaterOrEqual(t, game.Quarter, 0, "Quarter should be non-negative")
+	assert.LessOrEqual(t, game.Quarter, 4, "Quarter should not exceed 4")
+}
+
+func TestDateFormatting(t *testing.T) {
+	client := nba.NewClient()
+	testDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+
+	games, err := client.GetGamesForDate(testDate)
+	require.NoError(t, err)
+	require.NotEmpty(t, games)
+
+	// Check that date is properly formatted
+	for _, game := range games {
+		_, err := time.Parse("2006-01-02", game.Date)
+		assert.NoError(t, err, "Date should be in YYYY-MM-DD format")
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -8,37 +9,32 @@ import (
 	"time"
 
 	"github.com/jeremielumandong/nba-result/internal/nba"
-	"github.com/jeremielumandong/nba-result/internal/exporter"
+	"github.com/jeremielumandong/nba-result/internal/report"
 )
 
 func main() {
 	// Command line flags
 	var (
-		jsonFile = flag.String("json", "nba_games.json", "Output JSON file path")
-		excelFile = flag.String("excel", "nba_games.xlsx", "Output Excel file path")
-		date = flag.String("date", "", "Date to fetch games for (YYYY-MM-DD format, defaults to today)")
-		help = flag.Bool("help", false, "Show help message")
+		outputFile = flag.String("output", "nba_results.json", "Output JSON file path")
+		excelFile  = flag.String("excel", "nba_results.xlsx", "Output Excel file path")
+		date       = flag.String("date", "", "Date in YYYY-MM-DD format (default: today)")
+		help       = flag.Bool("help", false, "Show help message")
 	)
 	flag.Parse()
 
 	if *help {
-		fmt.Printf("NBA Game Results Tracker\n\n")
-		fmt.Printf("Usage: %s [options]\n\n", os.Args[0])
-		fmt.Printf("Options:\n")
-		flag.PrintDefaults()
+		printHelp()
 		return
 	}
 
 	// Parse date or use today
-	var targetDate time.Time
-	var err error
-	if *date == "" {
-		targetDate = time.Now()
-	} else {
-		targetDate, err = time.Parse("2006-01-02", *date)
+	targetDate := time.Now()
+	if *date != "" {
+		parsedDate, err := time.Parse("2006-01-02", *date)
 		if err != nil {
 			log.Fatalf("Invalid date format. Use YYYY-MM-DD: %v", err)
 		}
+		targetDate = parsedDate
 	}
 
 	fmt.Printf("Fetching NBA games for %s...\n", targetDate.Format("2006-01-02"))
@@ -47,24 +43,50 @@ func main() {
 	client := nba.NewClient()
 
 	// Fetch games
-	games, err := client.GetGamesByDate(targetDate)
+	games, err := client.GetGamesForDate(targetDate)
 	if err != nil {
-		log.Fatalf("Failed to fetch games: %v", err)
+		log.Fatalf("Error fetching NBA games: %v", err)
 	}
 
 	fmt.Printf("Found %d games\n", len(games))
 
-	// Export to JSON
-	if err := exporter.ExportToJSON(games, *jsonFile); err != nil {
-		log.Fatalf("Failed to export JSON: %v", err)
+	// Save JSON result
+	if err := saveJSON(games, *outputFile); err != nil {
+		log.Fatalf("Error saving JSON: %v", err)
 	}
-	fmt.Printf("JSON exported to: %s\n", *jsonFile)
+	fmt.Printf("JSON results saved to: %s\n", *outputFile)
 
-	// Export to Excel
-	if err := exporter.ExportToExcel(games, *excelFile); err != nil {
-		log.Fatalf("Failed to export Excel: %v", err)
+	// Generate Excel report
+	reporter := report.NewExcelReporter()
+	if err := reporter.GenerateReport(games, *excelFile); err != nil {
+		log.Fatalf("Error generating Excel report: %v", err)
 	}
-	fmt.Printf("Excel exported to: %s\n", *excelFile)
+	fmt.Printf("Excel report saved to: %s\n", *excelFile)
+}
 
-	fmt.Println("Export completed successfully!")
+func saveJSON(games []nba.Game, filename string) error {
+	data, err := json.MarshalIndent(games, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling JSON: %w", err)
+	}
+
+	return os.WriteFile(filename, data, 0644)
+}
+
+func printHelp() {
+	fmt.Println("NBA Game Results Tracker")
+	fmt.Println("========================")
+	fmt.Println()
+	fmt.Println("Usage: go run main.go [options]")
+	fmt.Println()
+	fmt.Println("Options:")
+	fmt.Println("  -output string    Output JSON file path (default: nba_results.json)")
+	fmt.Println("  -excel string     Output Excel file path (default: nba_results.xlsx)")
+	fmt.Println("  -date string      Date in YYYY-MM-DD format (default: today)")
+	fmt.Println("  -help             Show this help message")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  go run main.go")
+	fmt.Println("  go run main.go -date 2024-01-15")
+	fmt.Println("  go run main.go -output results.json -excel report.xlsx")
 }

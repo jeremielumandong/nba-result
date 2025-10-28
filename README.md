@@ -1,14 +1,14 @@
-# NBA Game Result Tracker
+# NBA Game Results Tracker
 
-A console application that fetches current NBA game results and exports them to both JSON and Excel formats.
+A Go console application that fetches current NBA game results and generates both JSON and Excel reports.
 
 ## Features
 
-- Fetches real-time NBA game data from the official NBA API
-- Outputs results as formatted JSON to console
-- Exports game data to Excel spreadsheet
-- Handles both completed and in-progress games
-- Includes team information, scores, and game status
+- Fetch NBA game results for any date
+- Generate JSON output with game details
+- Create formatted Excel reports with statistics
+- Command-line interface with flexible options
+- Mock data support for demonstration (since free NBA APIs are limited)
 
 ## Installation
 
@@ -18,108 +18,102 @@ git clone https://github.com/jeremielumandong/nba-result.git
 cd nba-result
 ```
 
-2. Install dependencies:
+2. Initialize Go modules:
 ```bash
-go mod download
+go mod tidy
 ```
 
 ## Usage
 
-### Running the Application
+### Basic Usage
 
+Run with default settings (today's games):
 ```bash
-go run cmd/main.go
+go run main.go
 ```
 
-The application will:
-1. Fetch today's NBA games from the official API
-2. Display the results as formatted JSON in the console
-3. Export the data to an Excel file named `nba_games_YYYYMMDD.xlsx`
+### Command Line Options
 
-### Output Format
+- `-output`: Specify JSON output file (default: `nba_results.json`)
+- `-excel`: Specify Excel output file (default: `nba_results.xlsx`)
+- `-date`: Specify date in YYYY-MM-DD format (default: today)
+- `-help`: Show help message
 
-#### JSON Output (Console)
+### Examples
+
+```bash
+# Get today's games
+go run main.go
+
+# Get games for a specific date
+go run main.go -date 2024-01-15
+
+# Specify custom output files
+go run main.go -output results.json -excel report.xlsx
+
+# Get help
+go run main.go -help
+```
+
+## Output
+
+### JSON Format
+The JSON output contains an array of game objects with the following structure:
 ```json
 [
   {
-    "game_id": "0022300123",
-    "date": "20240115",
+    "game_id": "001",
+    "date": "2024-01-15",
+    "time": "20:00",
     "home_team": {
-      "id": 1,
       "name": "Los Angeles Lakers",
-      "abbreviation": "LAL",
-      "score": 110,
-      "wins": 25,
-      "losses": 18
+      "code": "LAL",
+      "score": 112
     },
     "away_team": {
-      "id": 2,
-      "name": "Golden State Warriors", 
-      "abbreviation": "GSW",
-      "score": 105,
-      "wins": 22,
-      "losses": 21
+      "name": "Boston Celtics",
+      "code": "BOS",
+      "score": 108
     },
     "status": "Final",
-    "period": 4,
-    "time_remaining": "",
-    "start_time": "2024-01-15T19:30:00Z"
+    "quarter": 4,
+    "time_left": "0:00"
   }
 ]
 ```
 
-#### Excel Output
-The Excel file contains a formatted spreadsheet with columns:
-- Game ID
-- Date
-- Away Team
-- Away Score  
-- Home Team
-- Home Score
-- Status
-- Period
-- Time Remaining
+### Excel Report
+The Excel report includes:
+- Formatted table with all game details
+- Winner determination for completed games
+- Summary statistics (total games, games by status)
+- Professional styling and auto-adjusted columns
 
-## Architecture
-
-The application is structured as follows:
+## Project Structure
 
 ```
-├── cmd/
-│   └── main.go              # Application entry point
+.
+├── main.go                 # Main application entry point
+├── go.mod                  # Go module definition
 ├── internal/
 │   ├── nba/
-│   │   ├── client.go        # NBA API client
-│   │   └── client_test.go   # Client tests
-│   └── exporter/
-│       ├── excel.go         # Excel export functionality
-│       └── excel_test.go    # Excel export tests
-├── go.mod                   # Go module dependencies
-└── README.md               # Documentation
+│   │   ├── client.go       # NBA API client
+│   │   └── types.go        # Data structures
+│   └── report/
+│       └── excel.go        # Excel report generation
+└── tests/
+    ├── nba_test.go         # NBA client tests
+    └── report_test.go      # Report generation tests
 ```
-
-### Components
-
-#### NBA Client (`internal/nba/client.go`)
-- Handles HTTP requests to the NBA Stats API
-- Parses API responses into structured data
-- Manages authentication headers and request formatting
-- Converts raw API data to Go structs
-
-#### Excel Exporter (`internal/exporter/excel.go`)
-- Creates formatted Excel spreadsheets
-- Applies styling to headers and data
-- Auto-adjusts column widths for readability
-- Handles multiple games in a single export
 
 ## Dependencies
 
-- `github.com/xuri/excelize/v2` - Excel file generation
-- `github.com/stretchr/testify` - Testing framework
+- `github.com/xuri/excelize/v2`: Excel file generation
+- `github.com/stretchr/testify`: Testing utilities
 
 ## Testing
 
-Run all tests:
+Run tests:
 ```bash
 go test ./...
 ```
@@ -129,40 +123,25 @@ Run tests with coverage:
 go test -cover ./...
 ```
 
-Run specific package tests:
-```bash
-go test ./internal/nba
-go test ./internal/exporter
-```
+## API Integration
 
-## API Information
+Currently, the application uses mock data for demonstration purposes. The NBA provides various APIs, but most require authentication or have rate limits. The mock data structure follows the expected format and can be easily replaced with real API integration.
 
-This application uses the official NBA Stats API:
-- Base URL: `https://stats.nba.com/stats/scoreboardV2`
-- Requires specific headers to avoid rate limiting
-- Returns comprehensive game and team data
-- Updates in real-time during games
-
-## Error Handling
-
-The application includes robust error handling for:
-- Network connectivity issues
-- API rate limiting or unavailability
-- Invalid API responses
-- File system operations
-- Data parsing errors
+To integrate with a real NBA API:
+1. Update the `client.go` file with the appropriate API endpoints
+2. Modify the parsing logic in `parseGamesFromAPI` method
+3. Add proper error handling for API responses
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/nba-game-tracker`)
-3. Make your changes
-4. Add tests for new functionality
-5. Run the test suite
-6. Commit your changes (`git commit -am 'Add new feature'`)
-7. Push to the branch (`git push origin feature/nba-game-tracker`)
-8. Create a Pull Request
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Make your changes and add tests
+4. Run tests: `go test ./...`
+5. Commit your changes: `git commit -am 'Add your feature'`
+6. Push to the branch: `git push origin feature/your-feature`
+7. Create a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
