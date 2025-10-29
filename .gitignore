@@ -4,19 +4,18 @@
 *.dll
 *.so
 *.dylib
-bin/
 
 # Test binary, built with `go test -c`
 *.test
 
-# Output of the go coverage tool, specifically when used with LiteIDE
+# Output of the go coverage tool
 *.out
-
-# Go workspace file
-go.work
 
 # Dependency directories
 vendor/
+
+# Go workspace file
+go.work
 
 # IDE files
 .vscode/
@@ -34,18 +33,37 @@ vendor/
 ehthumbs.db
 Thumbs.db
 
-# Generated files
-*.xlsx
-coverage.html
-coverage.out
-
 # Environment files
 .env
 .env.local
+.env.*.local
 
 # Log files
 *.log
+logs/
+
+# Build directories
+bin/
+build/
+dist/
+
+# Coverage files
+coverage.txt
+coverage.html
 
 # Temporary files
 tmp/
 temp/
+
+# Configuration files with sensitive data
+config/local.yaml
+config/production.yaml
+*.pem
+*.key
+
+# Docker files
+.dockerignore
+
+# Air (live reload tool) files
+tmp/
+.air.toml

@@ -1,89 +1,107 @@
-# NBA Game Results Tracker Makefile
+# NBA Results API Makefile
 
-.PHONY: build test clean run install help
+# Go parameters
+GOCMD=go
+GOBUILD=$(GOCMD) build
+GOCLEAN=$(GOCMD) clean
+GOTEST=$(GOCMD) test
+GOGET=$(GOCMD) get
+GOMOD=$(GOCMD) mod
+GOFMT=gofmt
+GOVET=$(GOCMD) vet
 
-# Default target
-all: test build
+# Binary names
+BINARY_NAME=nba-results
+BINARY_UNIX=$(BINARY_NAME)_unix
+
+# Directories
+CMD_DIR=./cmd/server
+BIN_DIR=./bin
 
 # Build the application
 build:
-	@echo "Building NBA Game Results Tracker..."
-	go build -o bin/nba-tracker main.go
-	@echo "Build complete: bin/nba-tracker"
+	$(GOBUILD) -o $(BIN_DIR)/$(BINARY_NAME) -v $(CMD_DIR)
 
-# Run tests
+# Test all packages
 test:
-	@echo "Running tests..."
-	go test ./tests/... -v
+	$(GOTEST) -v ./...
 
-# Run tests with coverage
+# Test with coverage
 test-coverage:
-	@echo "Running tests with coverage..."
-	go test ./tests/... -v -cover -coverprofile=coverage.out
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
-
-# Run the application with default settings
-run:
-	@echo "Running NBA Game Results Tracker..."
-	go run main.go
-
-# Run with custom date
-run-date:
-	@echo "Running NBA Game Results Tracker for specific date..."
-	go run main.go -date 2024-01-15
-
-# Install dependencies
-install:
-	@echo "Installing dependencies..."
-	go mod tidy
-	go mod download
+	$(GOTEST) -v -race -coverprofile=coverage.out ./...
+	$(GOCMD) tool cover -html=coverage.out -o coverage.html
 
 # Clean build artifacts
 clean:
-	@echo "Cleaning build artifacts..."
-	rm -rf bin/
+	$(GOCLEAN)
+	rm -rf $(BIN_DIR)
 	rm -f coverage.out coverage.html
-	rm -f *.json *.xlsx
-	@echo "Clean complete"
+
+# Run the application
+run:
+	$(GOCMD) run $(CMD_DIR)/main.go
+
+# Install dependencies
+deps:
+	$(GOMOD) download
+	$(GOMOD) tidy
 
 # Format code
 fmt:
-	@echo "Formatting code..."
-	go fmt ./...
+	$(GOFMT) -s -w .
 
-# Lint code
+# Vet code for potential issues
+vet:
+	$(GOVET) ./...
+
+# Lint code (requires golangci-lint to be installed)
 lint:
-	@echo "Linting code..."
 	golangci-lint run
 
-# Run static analysis
-vet:
-	@echo "Running go vet..."
-	go vet ./...
+# Build for Linux
+build-linux:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BIN_DIR)/$(BINARY_UNIX) -v $(CMD_DIR)
 
-# Generate mock data for testing
-mock-data:
-	@echo "Running with mock data..."
-	go run main.go -output mock_results.json -excel mock_report.xlsx
+# Build for multiple platforms
+build-all: build build-linux
 
-# Development workflow
-dev: fmt vet test build
-	@echo "Development checks complete"
+# Development setup
+dev-setup:
+	$(GOMOD) download
+	$(GOMOD) tidy
+	@echo "Installing development tools..."
+	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@echo "Development setup complete!"
 
-# Help target
+# Run all checks (format, vet, lint, test)
+check: fmt vet lint test
+
+# Create directories
+init:
+	mkdir -p $(BIN_DIR)
+
+# Watch for changes and restart (requires air: go install github.com/cosmtrek/air@latest)
+dev:
+	air
+
+# Help
 help:
 	@echo "Available targets:"
-	@echo "  build         - Build the application"
-	@echo "  test          - Run tests"
+	@echo "  build        - Build the application"
+	@echo "  test         - Run tests"
 	@echo "  test-coverage - Run tests with coverage report"
-	@echo "  run           - Run the application with default settings"
-	@echo "  run-date      - Run the application for a specific date"
-	@echo "  install       - Install dependencies"
-	@echo "  clean         - Clean build artifacts"
-	@echo "  fmt           - Format code"
-	@echo "  lint          - Lint code (requires golangci-lint)"
-	@echo "  vet           - Run go vet"
-	@echo "  mock-data     - Generate sample output files"
-	@echo "  dev           - Run development checks (fmt, vet, test, build)"
-	@echo "  help          - Show this help message"
+	@echo "  clean        - Clean build artifacts"
+	@echo "  run          - Run the application"
+	@echo "  deps         - Install dependencies"
+	@echo "  fmt          - Format code"
+	@echo "  vet          - Vet code for potential issues"
+	@echo "  lint         - Lint code"
+	@echo "  build-linux  - Build for Linux"
+	@echo "  build-all    - Build for all platforms"
+	@echo "  dev-setup    - Set up development environment"
+	@echo "  check        - Run all checks (fmt, vet, lint, test)"
+	@echo "  init         - Create necessary directories"
+	@echo "  dev          - Watch for changes and restart (requires air)"
+	@echo "  help         - Show this help message"
+
+.PHONY: build test test-coverage clean run deps fmt vet lint build-linux build-all dev-setup check init dev help
