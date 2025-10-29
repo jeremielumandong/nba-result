@@ -1,89 +1,79 @@
-# NBA Game Results Tracker Makefile
+# Go parameters
+GOCMD=go
+GOBUILD=$(GOCMD) build
+GOCLEAN=$(GOCMD) clean
+GOTEST=$(GOCMD) test
+GOGET=$(GOCMD) get
+GOFMT=gofmt
+GOVET=$(GOCMD) vet
+BINARY_NAME=nba-result
+BINARY_UNIX=$(BINARY_NAME)_unix
 
-.PHONY: build test clean run install help
+.PHONY: all build clean test coverage deps fmt vet run help
 
 # Default target
 all: test build
 
 # Build the application
 build:
-	@echo "Building NBA Game Results Tracker..."
-	go build -o bin/nba-tracker main.go
-	@echo "Build complete: bin/nba-tracker"
+	$(GOBUILD) -o $(BINARY_NAME) -v ./main.go
+
+# Clean build files
+clean:
+	$(GOCLEAN)
+	rm -f $(BINARY_NAME)
+	rm -f $(BINARY_UNIX)
 
 # Run tests
 test:
-	@echo "Running tests..."
-	go test ./tests/... -v
+	$(GOTEST) -v ./...
 
 # Run tests with coverage
-test-coverage:
-	@echo "Running tests with coverage..."
-	go test ./tests/... -v -cover -coverprofile=coverage.out
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
+coverage:
+	$(GOTEST) -cover ./...
+	$(GOTEST) -coverprofile=coverage.out ./...
+	$(GOCMD) tool cover -html=coverage.out
 
-# Run the application with default settings
-run:
-	@echo "Running NBA Game Results Tracker..."
-	go run main.go
-
-# Run with custom date
-run-date:
-	@echo "Running NBA Game Results Tracker for specific date..."
-	go run main.go -date 2024-01-15
-
-# Install dependencies
-install:
-	@echo "Installing dependencies..."
-	go mod tidy
-	go mod download
-
-# Clean build artifacts
-clean:
-	@echo "Cleaning build artifacts..."
-	rm -rf bin/
-	rm -f coverage.out coverage.html
-	rm -f *.json *.xlsx
-	@echo "Clean complete"
+# Download dependencies
+deps:
+	$(GOGET) -d ./...
+	$(GOCMD) mod tidy
 
 # Format code
 fmt:
-	@echo "Formatting code..."
-	go fmt ./...
+	$(GOFMT) -w .
 
-# Lint code
-lint:
-	@echo "Linting code..."
-	golangci-lint run
-
-# Run static analysis
+# Vet code
 vet:
-	@echo "Running go vet..."
-	go vet ./...
+	$(GOVET) ./...
 
-# Generate mock data for testing
-mock-data:
-	@echo "Running with mock data..."
-	go run main.go -output mock_results.json -excel mock_report.xlsx
+# Run the application
+run:
+	$(GOBUILD) -o $(BINARY_NAME) -v ./main.go
+	./$(BINARY_NAME)
 
-# Development workflow
-dev: fmt vet test build
-	@echo "Development checks complete"
+# Run development server with auto-reload (requires air)
+dev:
+	air
 
-# Help target
+# Build for Linux
+build-linux:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BINARY_UNIX) -v ./main.go
+
+# Docker build
+docker-build:
+	docker build -t $(BINARY_NAME):latest .
+
+# Help
 help:
 	@echo "Available targets:"
-	@echo "  build         - Build the application"
-	@echo "  test          - Run tests"
-	@echo "  test-coverage - Run tests with coverage report"
-	@echo "  run           - Run the application with default settings"
-	@echo "  run-date      - Run the application for a specific date"
-	@echo "  install       - Install dependencies"
-	@echo "  clean         - Clean build artifacts"
-	@echo "  fmt           - Format code"
-	@echo "  lint          - Lint code (requires golangci-lint)"
-	@echo "  vet           - Run go vet"
-	@echo "  mock-data     - Generate sample output files"
-	@echo "  dev           - Run development checks (fmt, vet, test, build)"
-	@echo "  help          - Show this help message"
+	@echo "  build     - Build the application"
+	@echo "  clean     - Clean build files"
+	@echo "  test      - Run tests"
+	@echo "  coverage  - Run tests with coverage report"
+	@echo "  deps      - Download dependencies"
+	@echo "  fmt       - Format code"
+	@echo "  vet       - Vet code"
+	@echo "  run       - Build and run the application"
+	@echo "  dev       - Run with auto-reload (requires air)"
+	@echo "  help      - Show this help message"

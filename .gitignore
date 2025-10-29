@@ -4,7 +4,6 @@
 *.dll
 *.so
 *.dylib
-bin/
 
 # Test binary, built with `go test -c`
 *.test
@@ -12,11 +11,15 @@ bin/
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
 # Go workspace file
 go.work
 
-# Dependency directories
-vendor/
+# Build output
+nba-result
+nba-result_unix
 
 # IDE files
 .vscode/
@@ -34,18 +37,16 @@ vendor/
 ehthumbs.db
 Thumbs.db
 
-# Generated files
-*.xlsx
-coverage.html
-coverage.out
-
-# Environment files
+# Environment variables
 .env
 .env.local
 
 # Log files
 *.log
 
-# Temporary files
+# Coverage files
+coverage.out
+coverage.html
+
+# Air (live reload) temporary files
 tmp/
-temp/
