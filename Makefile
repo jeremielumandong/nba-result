@@ -15,11 +15,12 @@ build:
 test:
 	@echo "Running tests..."
 	go test ./tests/... -v
+	go test ./internal/nba/... -v
 
 # Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	go test ./tests/... -v -cover -coverprofile=coverage.out
+	go test ./tests/... ./internal/nba/... -v -cover -coverprofile=coverage.out
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
@@ -32,6 +33,11 @@ run:
 run-date:
 	@echo "Running NBA Game Results Tracker for specific date..."
 	go run main.go -date 2024-01-15
+
+# Run with date range
+run-range:
+	@echo "Running NBA Game Results Tracker for date range..."
+	go run main.go -start-date 2024-01-15 -end-date 2024-01-17
 
 # Install dependencies
 install:
@@ -65,7 +71,14 @@ vet:
 # Generate mock data for testing
 mock-data:
 	@echo "Running with mock data..."
-	go run main.go -output mock_results.json -excel mock_report.xlsx
+	go run main.go -date 2024-01-15 -output mock_results.json -excel mock_report.xlsx
+
+# Test date functionality
+test-dates:
+	@echo "Testing date functionality..."
+	go run main.go -date 2024-01-15 -output test_single.json -excel test_single.xlsx
+	go run main.go -start-date 2024-01-15 -end-date 2024-01-17 -output test_range.json -excel test_range.xlsx
+	@echo "Test files generated: test_single.json, test_single.xlsx, test_range.json, test_range.xlsx"
 
 # Development workflow
 dev: fmt vet test build
@@ -79,11 +92,18 @@ help:
 	@echo "  test-coverage - Run tests with coverage report"
 	@echo "  run           - Run the application with default settings"
 	@echo "  run-date      - Run the application for a specific date"
+	@echo "  run-range     - Run the application for a date range"
 	@echo "  install       - Install dependencies"
 	@echo "  clean         - Clean build artifacts"
 	@echo "  fmt           - Format code"
-	@echo "  lint          - Lint code (requires golangci-lint)"
+	@echo "  lint          - Lint code"
 	@echo "  vet           - Run go vet"
-	@echo "  mock-data     - Generate sample output files"
-	@echo "  dev           - Run development checks (fmt, vet, test, build)"
+	@echo "  mock-data     - Generate mock data files"
+	@echo "  test-dates    - Test date functionality with sample outputs"
+	@echo "  dev           - Run development workflow (fmt, vet, test, build)"
 	@echo "  help          - Show this help message"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make run-date              # Run for 2024-01-15"
+	@echo "  make run-range             # Run for 2024-01-15 to 2024-01-17"
+	@echo "  make test-dates            # Test date functionality"
